@@ -1,72 +1,91 @@
+from typing import List, TypedDict
+from langchain_core.messages import HumanMessage
+from langgraph.graph import StateGraph, END, START
 import functools
 import asyncio
-import operator
-from typing import Annotated, Sequence
-from typing_extensions import TypedDict
 
-from langchain_core.messages import HumanMessage
-from langchain_core.messages import BaseMessage
-
-from langgraph.graph import END, StateGraph, START
-
-from agents.file_manager import file_manager
-from agents.helpers import agent_node
-from agents.researcher import researcher_agent
-from agents.coder import coder_agent
-from agents.tester import tester_agent
-from agents.supervisor import supervisor_agent
-from agents.supervisor import members
+from agents.product_manager_agent import product_manager_node
+from agents.context_agent import context_agent_node
+from agents.code_analysis_agent import code_analysis_node
+from agents.task_manager_agent import task_manager_node
 
 
 class AgentState(TypedDict):
-    messages: Annotated[Sequence[BaseMessage], operator.add]
-    next: str
+    user_input: str
+    messages: List[str]
+    next_agent: str
+    code_context: str
+    relevant_files: List[str]
+    suggested_packages: List[str]
+    tasks: List[str]
 
 
-research_node = functools.partial(agent_node, agent=researcher_agent, name="Researcher")
-code_node = functools.partial(agent_node, agent=coder_agent, name="Coder")
-file_manager_node = functools.partial(
-    agent_node, agent=file_manager, name="FileManager"
-)
-tester_node = functools.partial(agent_node, agent=tester_agent, name="Tester")
-
+# Create the graph
 workflow = StateGraph(AgentState)
-workflow.add_node("Researcher", research_node)
-workflow.add_node("Coder", code_node)
-workflow.add_node("FileManager", file_manager_node)
-workflow.add_node("Tester", tester_node)
-workflow.add_node("supervisor", supervisor_agent)
 
-# Researcher -> Supervisor
-workflow.add_edge("Researcher", "supervisor")
-
-# Coder -> Supervisor
-workflow.add_edge("Coder", "supervisor")
-
-# FileManager -> Coder
-workflow.add_edge("FileManager", "Coder")
-
-# Tester -> Supervisor
-workflow.add_edge("Tester", "supervisor")
-
-conditional_map = {k: k for k in members}
-conditional_map["FINISH"] = END
-workflow.add_conditional_edges("supervisor", lambda x: x["next"], conditional_map)
-workflow.add_edge(START, "supervisor")
-
-graph = workflow.compile()
+# Define the nodes
+workflow.add_node("ProductManager", product_manager_node)
+workflow.add_node("Context", context_agent_node)
+workflow.add_node("CodeAnalysis", code_analysis_node)
+workflow.add_node("TaskManager", task_manager_node)
 
 
-async def main():
-    user_input = input(
-        "Please enter your project idea (e.g., 'build me a tic tac toe game with a basic UI'): "
+# Define the routing logic
+def route_next_agent(state: AgentState) -> str:
+    return state["next_agent"]
+
+
+# Add conditional edges
+workflow.add_conditional_edges(
+    "ProductManager",
+    route_next_agent,
+    {
+        "Context": "Context",
+        "CodeAnalysis": "CodeAnalysis",
+        "TaskManager": "TaskManager",
+        "FINISH": END,
+    },
+)
+
+workflow.add_edge("Context", "ProductManager")
+workflow.add_edge("CodeAnalysis", "ProductManager")
+workflow.add_edge("TaskManager", "ProductManager")
+
+# Set the entry point
+workflow.add_edge(START, "ProductManager")
+
+# Compile the graph
+project_management_team = workflow.compile()
+
+
+# Function to initialize the chain state
+def enter_chain(message: str, members: List[str]):
+    return AgentState(
+        user_input=message,
+        messages=[HumanMessage(content=message)],
+        next_agent="ProductManager",
+        code_context="",
+        relevant_files=[],
+        suggested_packages=[],
+        tasks=[],
+        team_members=", ".join(members),
     )
-    async for s in graph.astream({"messages": [HumanMessage(content=user_input)]}):
-        if "__end__" not in s:
-            print(s)
-            print("----")
-    print("Project completed. Check the workspace directory for the generated files.")
+
+
+# Create the full chain
+project_management_chain = (
+    functools.partial(enter_chain, members=workflow.nodes) | project_management_team
+)
+
+
+async def manage_project(user_input: str):
+    """
+    Run the project management team with a given user input.
+    """
+    result = await project_management_chain.ainvoke(user_input)
+    print(result)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    user_input = input("Enter your request for the project management team: ")
+    asyncio.run(manage_project(user_input))

@@ -5,3 +5,6 @@ langgraph==0.2.28
 langchain_experimental==0.3.2
 langsmith==0.1.129
 pandas==2.2.3
+gitpython==3.1.32
+PyGithub==1.55
+typer==0.10.0

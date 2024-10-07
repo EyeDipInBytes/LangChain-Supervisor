@@ -1,5 +1,5 @@
 from langchain_openai import ChatOpenAI
 
 llModel = ChatOpenAI(
-    model="gpt-4o",
+    model="gpt-4o-mini",
 )
