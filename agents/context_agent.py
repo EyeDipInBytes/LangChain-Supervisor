@@ -1,7 +1,7 @@
 from typing import TypedDict, List, Annotated
 from langchain.prompts import ChatPromptTemplate
 from langchain.tools import Tool
-from langchain.agents import create_react_agent
+from langgraph.prebuilt import create_react_agent
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.prompts import MessagesPlaceholder
 from agents.helpers import agent_node
@@ -106,7 +106,7 @@ context_agent_prompt = ChatPromptTemplate.from_messages(
 )
 
 context_agent_chain = create_react_agent(
-    llm=llModel, tools=tools, prompt=context_agent_prompt
+    model=llModel, tools=tools, state_modifier=context_agent_prompt
 )
 
 

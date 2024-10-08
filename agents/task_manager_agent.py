@@ -1,6 +1,6 @@
 from typing import TypedDict, List, Annotated
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
-from langchain.agents import create_react_agent
+from langchain_core.messages import AIMessage, BaseMessage
+from langgraph.prebuilt import create_react_agent
 from langchain.tools import Tool
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from agents.helpers import agent_node
@@ -87,7 +87,7 @@ task_manager_prompt = ChatPromptTemplate.from_messages(
 )
 
 task_manager_chain = create_react_agent(
-    llm=llModel, tools=tools, prompt=task_manager_prompt
+    model=llModel, tools=tools, state_modifier=task_manager_prompt
 )
 
 

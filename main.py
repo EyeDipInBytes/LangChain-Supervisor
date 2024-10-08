@@ -1,13 +1,14 @@
+import logging
 from typing import List, TypedDict
 from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, END, START
 import functools
 import asyncio
 
-from agents.product_manager_agent import product_manager_node
 from agents.context_agent import context_agent_node
 from agents.code_analysis_agent import code_analysis_node
 from agents.task_manager_agent import task_manager_node
+from agents.product_manager_agent import get_product_manager_agent
 
 
 class AgentState(TypedDict):
@@ -24,10 +25,10 @@ class AgentState(TypedDict):
 workflow = StateGraph(AgentState)
 
 # Define the nodes
-workflow.add_node("ProductManager", product_manager_node)
-workflow.add_node("Context", context_agent_node)
-workflow.add_node("CodeAnalysis", code_analysis_node)
-workflow.add_node("TaskManager", task_manager_node)
+workflow.add_node("ContextAgent", context_agent_node)
+workflow.add_node("CodeAnalysisAgent", code_analysis_node)
+workflow.add_node("TaskManagerAgent", task_manager_node)
+workflow.add_node("supervisor", get_product_manager_agent())
 
 
 # Define the routing logic
@@ -37,22 +38,22 @@ def route_next_agent(state: AgentState) -> str:
 
 # Add conditional edges
 workflow.add_conditional_edges(
-    "ProductManager",
+    "supervisor",
     route_next_agent,
     {
-        "Context": "Context",
-        "CodeAnalysis": "CodeAnalysis",
-        "TaskManager": "TaskManager",
+        "ContextAgent": "ContextAgent",
+        "CodeAnalysisAgent": "CodeAnalysisAgent",
+        "TaskManagerAgent": "TaskManagerAgent",
         "FINISH": END,
     },
 )
 
-workflow.add_edge("Context", "ProductManager")
-workflow.add_edge("CodeAnalysis", "ProductManager")
-workflow.add_edge("TaskManager", "ProductManager")
+workflow.add_edge("ContextAgent", "supervisor")
+workflow.add_edge("CodeAnalysisAgent", "supervisor")
+workflow.add_edge("TaskManagerAgent", "supervisor")
 
 # Set the entry point
-workflow.add_edge(START, "ProductManager")
+workflow.add_edge(START, "supervisor")
 
 # Compile the graph
 project_management_team = workflow.compile()
@@ -63,7 +64,7 @@ def enter_chain(message: str, members: List[str]):
     return AgentState(
         user_input=message,
         messages=[HumanMessage(content=message)],
-        next_agent="ProductManager",
+        next_agent="supervisor",
         code_context="",
         relevant_files=[],
         suggested_packages=[],
@@ -79,11 +80,14 @@ project_management_chain = (
 
 
 async def manage_project(user_input: str):
-    """
-    Run the project management team with a given user input.
-    """
-    result = await project_management_chain.ainvoke(user_input)
-    print(result)
+    logging.debug(f"Starting project management with user input: {user_input}")
+    try:
+        result = await project_management_chain.ainvoke(user_input)
+        logging.debug(f"Project management result: {result}")
+        print("Final result:", result)
+    except Exception as e:
+        logging.error(f"Error in manage_project: {str(e)}", exc_info=True)
+        print(f"An error occurred: {str(e)}")
 
 
 if __name__ == "__main__":

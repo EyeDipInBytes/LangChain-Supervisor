@@ -1,6 +1,6 @@
 from typing import TypedDict, List, Annotated
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
-from langchain.agents import create_react_agent
+from langgraph.prebuilt import create_react_agent
 from langchain.tools import Tool
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from agents.helpers import agent_node
@@ -111,7 +111,7 @@ code_analysis_prompt = ChatPromptTemplate.from_messages(
 )
 
 code_analysis_chain = create_react_agent(
-    llm=llModel, tools=tools, prompt=code_analysis_prompt
+    model=llModel, tools=tools, state_modifier=code_analysis_prompt
 )
 
 
@@ -137,9 +137,9 @@ code_analysis_node = functools.partial(
 )
 
 
-async def code_analysis_agent(state: AgentState) -> AgentState:
+def code_analysis_agent(state: AgentState) -> AgentState:
     try:
-        result = await code_analysis_node(state)
+        result = code_analysis_node(state)
 
         analysis_message = f"""
         Code Analysis Results:

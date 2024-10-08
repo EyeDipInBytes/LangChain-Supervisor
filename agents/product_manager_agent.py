@@ -1,4 +1,4 @@
-from typing import List, Dict, TypedDict
+from typing import List, TypedDict
 from langchain_openai import ChatOpenAI
 from llm import llModel
 from agents.helpers import create_team_supervisor
@@ -14,7 +14,7 @@ class AgentState(TypedDict):
     tasks: List[str]
 
 
-def create_product_manager_supervisor(llm: ChatOpenAI, team_members: List[str]):
+def product_manager_supervisor(llm: ChatOpenAI, team_members: List[str]):
     """Creates a Product Manager supervisor for routing and analysis."""
     return create_team_supervisor(
         llm,
@@ -27,22 +27,7 @@ def create_product_manager_supervisor(llm: ChatOpenAI, team_members: List[str]):
     )
 
 
-def product_manager_node(state: Dict) -> Dict:
-    """Product Manager Node that coordinates the project flow."""
-    team_members = [
-        "Context",
-        "CodeAnalysis",
-        "TaskManager",
-    ]
-
-    supervisor = create_product_manager_supervisor(llModel, team_members)
-
-    result = supervisor.invoke(
-        {"messages": state["messages"] + [f"Current State: {state}"]}
+def get_product_manager_agent():
+    return product_manager_supervisor(
+        llModel, ["ContextAgent", "CodeAnalysisAgent", "TaskManagerAgent"]
     )
-
-    # Update state based on the result
-    state["next_agent"] = result["next"]
-    state["messages"].append(result["messages"][-1])
-
-    return state

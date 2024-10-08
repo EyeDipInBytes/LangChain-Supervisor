@@ -26,14 +26,12 @@ def create_team_supervisor(llm: ChatOpenAI, system_prompt, members) -> str:
         "name": "route",
         "description": "Select the next role.",
         "parameters": {
-            "title": "routeSchema",
             "type": "object",
             "properties": {
                 "next": {
-                    "title": "Next",
-                    "anyOf": [
-                        {"enum": options},
-                    ],
+                    "type": "string",
+                    "enum": options,
+                    "description": "The next role to act or FINISH if the task is complete.",
                 },
             },
             "required": ["next"],
@@ -53,6 +51,6 @@ def create_team_supervisor(llm: ChatOpenAI, system_prompt, members) -> str:
     return (
         prompt
         | trimmer
-        | llm.bind_functions(functions=[function_def], function_call="route")
+        | llm.bind(functions=[function_def], function_call={"name": "route"})
         | JsonOutputFunctionsParser()
     )
