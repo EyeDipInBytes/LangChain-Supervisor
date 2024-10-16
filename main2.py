@@ -5,7 +5,7 @@ import os
 from typing import Annotated, List, TypedDict
 
 from github import Github, GithubException
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langgraph.prebuilt import create_react_agent
 from llm import llModel
 from langgraph.graph import StateGraph, START, END
@@ -13,9 +13,13 @@ from agents.helpers import agent_node, create_team_supervisor
 from langchain_core.tools import tool
 
 
+chat_history = []
+
+
 # ResearchTeam graph state
 class ResearchTeamState(TypedDict):
     messages: Annotated[List[BaseMessage], operator.add]
+    chat_history: List[BaseMessage]
     # The team members are tracked so they are aware of
     # the others' skill-sets
     team_members: List[str]
@@ -121,23 +125,43 @@ chain = research_graph.compile()
 # and the state of the research sub-graph
 # this makes it so that the states of each graph don't get intermixed
 def enter_chain(message: str):
-    results = {
+    return {
         "messages": [HumanMessage(content=message)],
+        "chat_history": chat_history,  # Add this line
+        "team_members": ["SearchRepository", "ListRepoFiles"],  # Add this line
+        "next": "",  # Add this line
     }
-    return results
 
 
-research_chain = enter_chain | chain
+# Modify the research_chain definition
+research_chain = chain
 
 
 async def process_input(user_input):
-    async for step in research_chain.astream(user_input, {"recursion_limit": 100}):
+    global chat_history
+
+    # Add this print statement to see the current chat history
+    print("\nCurrent Chat History:")
+    for message in chat_history:
+        print(
+            f"{'User' if isinstance(message, HumanMessage) else 'AI'}: {message.content}"
+        )
+    print("\nProcessing new input...")
+    print("Chat history:", chat_history)
+
+    chat_history.append(HumanMessage(content=user_input))
+
+    async for step in research_chain.astream(
+        enter_chain(user_input),
+        {"recursion_limit": 100},
+    ):
         if "__end__" not in step:
             if "supervisor" in step:
                 response = step["supervisor"]["messages"][-1].content
                 print("AI:", response)
+                chat_history.append(AIMessage(content=response))
                 if step["supervisor"]["next"] == "WAIT_FOR_INPUT":
-                    return True  # Indicates that we need more user input
+                    return True
             elif "SearchRepository" in step or "ListRepoFiles" in step:
                 agent_name = (
                     "SearchRepository"
@@ -149,10 +173,11 @@ async def process_input(user_input):
                 # Print other steps for debugging (optional)
                 print("Step:", step)
         print("---")
-    return False  # Indicates that the conversation can continue without immediate user input
+    return False
 
 
 async def main():
+    global chat_history
     while True:
         user_input = input("User: ")
         if user_input.lower() in ["exit", "quit", "bye"]:
